@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>မေးလိုရာမေး Chatbot</title>
+
+  <!-- tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pyidaungsu:wght@400;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <!-- sql.js wasm -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+
+  <!-- marked.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- tailwind config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pyidaungsu', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            neo: {
+              bg: '#FFFDF5',
+              card: '#FFFFFF',
+              yellow: '#FFDE59',
+              cyan: '#7DF9FF',
+              green: '#A6FA7A',
+              pink: '#FFA6F6',
+              dark: '#121212',
+            }
+          },
+          boxShadow: {
+            'neo-sm': '2px 2px 0px 0px #000000',
+            'neo': '4px 4px 0px 0px #000000',
+            'neo-lg': '6px 6px 0px 0px #000000',
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-neo-bg font-sans text-neo-dark h-[100dvh] overflow-hidden antialiased p-2 md:p-4">
+
+  <div class="flex h-full w-full gap-2 md:gap-4 relative">
+
+    <!-- mobile overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>
+
+    <!-- sidebar -->
+    <aside 
+      id="sidebar" 
+      class="fixed inset-y-2 left-2 z-40 w-72 max-w-[85vw] bg-neo-cyan border-[3px] border-black rounded-xl shadow-neo-lg flex flex-col p-4 transition-transform duration-200 -translate-x-[110%] md:translate-x-0 md:static md:w-80 md:h-full md:inset-auto"
+    >
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="bg-neo-yellow border-2 border-black rounded-md px-3 py-1 font-black text-lg md:text-xl shadow-neo-sm">
+          မေးလိုရာမေး
+        </h2>
+        <button id="closeSidebarBtn" class="md:hidden bg-neo-pink border-2 border-black w-8 h-8 rounded-lg font-black text-sm shadow-neo-sm neo-press flex items-center justify-center">
+          ✕
+        </button>
+      </div>
+
+      <!-- New Chat Button -->
+      <button 
+        id="newChatBtn" 
+        class="w-full bg-neo-yellow border-2 border-black rounded-lg py-2.5 px-3 font-extrabold text-xs md:text-sm shadow-neo neo-press cursor-pointer flex items-center justify-center gap-2"
+      >
+        <span>+</span> စကားဝိုင်းအသစ် စတင်မည်
+      </button>
+
+      <div class="mt-4 mb-2 flex justify-between items-center px-1">
+        <span class="text-xs font-black text-black/80">မှတ်တမ်းများ</span>
+        <span id="sessionCount" class="text-[10px] bg-white border border-black rounded-full px-2 py-0.5 font-bold shadow-neo-sm">0</span>
+      </div>
+
+      <!-- chat list -->
+      <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="chatList"></div>
+
+      <div class="pt-3 border-t-2 border-black mt-2">
+        <button 
+          id="openApiKeyBtn" 
+          class="w-full bg-neo-pink border-2 border-black rounded-lg py-2 px-3 font-bold text-xs shadow-neo-sm neo-press cursor-pointer flex items-center justify-center gap-1.5"
+        >
+          <span>🔑</span> <span id="apiKeyBtnText">Gemini API Key ထည့်ရန်</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- chat container -->
+    <main class="flex-1 w-full min-w-0 bg-white border-[3px] border-black rounded-xl shadow-neo-lg flex flex-col overflow-hidden">
+      
+      <header class="bg-neo-pink border-b-[3px] border-black px-4 py-3 md:px-6 md:py-4 flex justify-between items-center gap-2">
+        <div class="flex items-center gap-3 min-w-0">
+          <button 
+            id="toggleSidebarBtn" 
+            class="md:hidden bg-neo-yellow border-2 border-black w-9 h-9 rounded-lg font-black text-lg shadow-neo-sm neo-press flex items-center justify-center shrink-0"
+          >
+            ☰
+          </button>
+          
+          <div class="min-w-0">
+            <h3 class="font-extrabold text-sm md:text-lg truncate">မေးလိုရာမေး AI Assistant</h3>
+            <span id="dbStatusBadge" class="inline-block bg-neo-green border border-black rounded-full px-2 py-0.5 text-[10px] md:text-xs font-bold shadow-neo-sm">
+              ● SQLite Ready
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <!-- messages -->
+      <div class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-4 bg-[#F7F5EB]" id="messagesArea">
+        <!-- welcome card -->
+        <div class="max-w-md bg-neo-yellow border-[3px] border-black rounded-xl p-5 shadow-neo">
+          <div class="inline-block bg-white border border-black rounded-md px-2 py-0.5 text-xs font-black mb-2 shadow-neo-sm">
+            🤖 မေးလိုရာမေး AI
+          </div>
+          <h4 class="font-extrabold text-base md:text-lg mb-1">မင်္ဂလာပါခင်ဗျာ!</h4>
+          <p class="text-xs md:text-sm font-medium leading-relaxed">
+            မေးလိုရာ အကြောင်းအရာများကို စတင်မေးမြန်းနိုင်ပါပြီ။
+          </p>
+          <div class="mt-3 pt-3 border-t border-black/30 flex flex-wrap gap-1.5 text-[11px] font-bold">
+            <span class="bg-white border border-black rounded px-2 py-0.5">⚡ Gemini 3.5 Flash</span>
+            <span class="bg-neo-green border border-black rounded px-2 py-0.5">💾 Browser SQLite</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- input form -->
+      <footer class="p-3 md:p-4 bg-neo-bg border-t-[3px] border-black">
+        <form id="chatForm" class="flex gap-2">
+          <input 
+            type="text" 
+            id="userInput" 
+            placeholder="မေးလိုရာကို ဤနေရာတွင် ရိုက်ထည့်ပါ..." 
+            class="flex-1 min-w-0 bg-white border-2 border-black rounded-lg px-3 py-2.5 md:px-4 md:py-3 text-xs md:text-sm font-medium shadow-neo-sm focus:outline-none focus:shadow-neo transition-all"
+            autocomplete="off"
+            required
+          />
+          <button 
+            type="submit" 
+            id="sendBtn" 
+            class="bg-neo-yellow border-2 border-black rounded-lg px-4 py-2.5 md:px-6 md:py-3 font-extrabold text-xs md:text-sm shadow-neo neo-press cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+          >
+            <span>မေးမည်</span>
+            <span>↵</span>
+          </button>
+        </form>
+      </footer>
+    </main>
+
+  </div>
+
+  <!-- api key modal -->
+  <div id="apiKeyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4 hidden">
+    <div class="bg-neo-bg border-[3px] border-black rounded-xl p-5 md:p-6 w-full max-w-md shadow-neo-lg">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-black text-base md:text-lg">🔑 Gemini API Key သတ်မှတ်ခြင်း</h3>
+        <button id="closeApiKeyBtn" class="bg-neo-pink border-2 border-black w-8 h-8 rounded-lg font-black text-sm shadow-neo-sm neo-press flex items-center justify-center">✕</button>
+      </div>
+      <p class="text-xs text-neutral-700 font-medium mb-3">
+        Google AI Studio မှ ရရှိသော API Key ကို ဤနေရာတွင် ထည့်ပေးပါ။ Key ကို သင်၏ Browser (`localStorage`) ထဲတွင်သာ လုံခြုံစွာ သိမ်းထားမည် ဖြစ်ပါသည်။
+      </p>
+      <form id="apiKeyForm" class="space-y-3">
+        <input 
+          type="password" 
+          id="apiKeyInput" 
+          placeholder="AIzaSy..." 
+          class="w-full bg-white border-2 border-black rounded-lg p-2.5 text-xs md:text-sm shadow-neo-sm focus:outline-none focus:shadow-neo"
+          required
+        />
+        <div class="flex justify-between items-center gap-2">
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-xs font-bold text-blue-600 underline">
+            Key အခမဲ့ ရယူရန် ↗
+          </a>
+          <button type="submit" class="bg-neo-green border-2 border-black rounded-lg py-2 px-5 font-black text-xs md:text-sm shadow-neo neo-press cursor-pointer">
+            သိမ်းဆည်းမည်
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

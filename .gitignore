@@ -1,0 +1,6 @@
+node_modules/
+.env
+chatbot.db
+chatbot.db-journal
+.vercel
+*.log
